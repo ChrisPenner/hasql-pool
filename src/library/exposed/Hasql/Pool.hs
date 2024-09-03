@@ -20,6 +20,7 @@ import Hasql.Pool.Observation
 import Hasql.Pool.Prelude
 import Hasql.Pool.SessionErrorDestructors qualified as ErrorsDestruction
 import Hasql.Session qualified as Session
+import UnliftIO qualified
 
 -- | A connection tagged with metadata.
 data Entry = Entry
@@ -205,23 +206,23 @@ use Pool {..} sess = do
 
     onLiveConn reuseVar entry = do
       poolObserver (ConnectionObservation (entryId entry) InUseConnectionStatus)
-      sessRes <- try @SomeException (Session.run sess (entryConnection entry))
+      sessRes <-
+        UnliftIO.tryAny (Session.run sess (entryConnection entry))
+          `UnliftIO.withException` \exc -> do
+            releaseConn (EncounteredExceptionReason exc)
 
       case sessRes of
         Left exc -> do
-          returnConn
+          releaseConn (EncounteredExceptionReason exc)
           throwIO exc
         Right (Left err) ->
           ErrorsDestruction.reset
             ( \details -> do
-                Connection.release (entryConnection entry)
-                atomically $ modifyTVar' poolCapacity succ
-                poolObserver (ConnectionObservation (entryId entry) (TerminatedConnectionStatus (NetworkErrorConnectionTerminationReason (fmap (Text.decodeUtf8With Text.lenientDecode) details))))
+                releaseConn (NetworkErrorConnectionTerminationReason (fmap (Text.decodeUtf8With Text.lenientDecode) details))
                 return $ Left $ SessionUsageError err
             )
             ( do
-                returnConn
-                poolObserver (ConnectionObservation (entryId entry) (ReadyForUseConnectionStatus (SessionFailedConnectionReadyForUseReason err)))
+                releaseConn (EncounteredSessionErrorReason err)
                 return $ Left $ SessionUsageError err
             )
             err
@@ -230,6 +231,10 @@ use Pool {..} sess = do
           poolObserver (ConnectionObservation (entryId entry) (ReadyForUseConnectionStatus SessionSucceededConnectionReadyForUseReason))
           return $ Right res
       where
+        releaseConn reason = do
+          Connection.release (entryConnection entry)
+          atomically $ modifyTVar' poolCapacity succ
+          poolObserver (ConnectionObservation (entryId entry) (TerminatedConnectionStatus reason))
         returnConn =
           join . atomically $ do
             reuse <- readTVar reuseVar

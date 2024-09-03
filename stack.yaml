@@ -1,0 +1,8 @@
+resolver: lts-22.26
+packages:
+- .
+
+extra-deps:
+- hasql-1.8
+- postgresql-binary-0.14@sha256:3f3518f841cf80b107862800715bc64f43c2c71696c4129f63404c1ff61cc919,4025
+- postgresql-libpq-0.10.1.0@sha256:6a45edff0a9e30b32cda6e443107950492322622c4fbefc8fb4dcf6452dcf0b4,3203
