@@ -16,7 +16,7 @@ data Observation
       UUID
       -- | Status that the connection has entered.
       ConnectionStatus
-  deriving (Show, Eq)
+  deriving (Show)
 
 -- | Status of a connection.
 --
@@ -34,7 +34,7 @@ data ConnectionStatus
     InUseConnectionStatus
   | -- | Connection terminated.
     TerminatedConnectionStatus ConnectionTerminationReason
-  deriving (Show, Eq)
+  deriving (Show)
 
 data ConnectionReadyForUseReason
   = -- | Connection just got established.
@@ -57,4 +57,6 @@ data ConnectionTerminationReason
     ReleaseConnectionTerminationReason
   | -- | Initialization session failure.
     InitializationErrorTerminationReason Session.SessionError
-  deriving (Show, Eq)
+  | EncounteredSessionErrorReason Session.SessionError
+  | EncounteredExceptionReason SomeException
+  deriving (Show)
